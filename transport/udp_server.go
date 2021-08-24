@@ -14,11 +14,11 @@ type UDPServer struct {
 	WriteChan chan *Packet
 	done      chan struct{}
 	Keepalive bool
-	//Sessions  sync.Map // key is remote-addr的string , value:*Connection。UDP不需要
+	// Sessions  sync.Map // key is remote-addr的string , value:*Connection。UDP不需要
 }
 
-func NewUDPServer(port uint16) IServer {
-	addrStr := fmt.Sprintf(":%d", port)
+func NewUDPServer(ip string, port uint16) IServer {
+	addrStr := fmt.Sprintf("%s:%d", ip, port)
 
 	return &UDPServer{
 		addr:      addrStr,
@@ -58,13 +58,13 @@ func (s *UDPServer) Start() error {
 
 	s.Conn = conn
 
-	fmt.Println("start udp server at: ", s.addr)
+	// fmt.Println("start udp server at: ", s.addr)
 
-	//心跳线程
+	// 心跳线程
 	if s.Keepalive {
-		//TODO:start heartbeat thread
+		// TODO:start heartbeat thread
 	}
-	//写线程
+	// 写线程
 	go func() {
 		for {
 			select {
@@ -76,7 +76,7 @@ func (s *UDPServer) Start() error {
 		}
 	}()
 
-	//读线程
+	// 读线程
 	for {
 		data := make([]byte, 4096)
 		n, remoteAddr, err := conn.ReadFromUDP(data)
@@ -90,17 +90,20 @@ func (s *UDPServer) Start() error {
 		}
 	}
 }
+
 func (s *UDPServer) ReadPacketChan() <-chan *Packet {
 	return s.ReadChan
 }
+
 func (s *UDPServer) WritePacket(packet *Packet) {
 	s.WriteChan <- packet
 }
 
 func (s *UDPServer) Close() error {
-	//所有session离线和关闭处理
+	// 所有session离线和关闭处理
 	return nil
 }
+
 func (s *UDPServer) CloseOne(addr string) {
-	//处理某设备离线
+	// 处理某设备离线
 }

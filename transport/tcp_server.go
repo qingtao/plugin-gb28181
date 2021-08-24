@@ -16,11 +16,11 @@ type TCPServer struct {
 	writeChan chan *Packet
 	done      chan struct{}
 	Keepalive bool
-	sessions  sync.Map //key 是 remote-addr , value:*Connection。
+	sessions  sync.Map // key 是 remote-addr , value:*Connection。
 }
 
-func NewTCPServer(port uint16, keepalive bool) IServer {
-	tcpAddr := fmt.Sprintf(":%d", port)
+func NewTCPServer(ip string, port uint16, keepalive bool) IServer {
+	tcpAddr := fmt.Sprintf("%s:%d", ip, port)
 
 	return &TCPServer{
 		addr:      tcpAddr,
@@ -38,16 +38,17 @@ func (s *TCPServer) IsReliable() bool {
 func (s *TCPServer) Name() string {
 	return fmt.Sprintf("tcp server at:%s", s.addr)
 }
+
 func (s *TCPServer) IsKeepalive() bool {
 	return s.Keepalive
 }
 
 func (s *TCPServer) Start() error {
-	//监听端口
-	//开启tcp连接线程
+	// 监听端口
+	// 开启tcp连接线程
 	var err error
 	s.listener, err = net.Listen("tcp", s.addr)
-	//s.listener, err = tls.Listen("tcp", s.tcpAddr, tlsConfig)
+	// s.listener, err = tls.Listen("tcp", s.tcpAddr, tlsConfig)
 	if err != nil {
 		fmt.Println("TCP Listen failed:", err)
 		return err
@@ -56,11 +57,11 @@ func (s *TCPServer) Start() error {
 
 	fmt.Println("start tcp server at: ", s.addr)
 
-	//心跳线程
+	// 心跳线程
 	if s.Keepalive {
-		//TODO:start heartbeat thread
+		// TODO:start heartbeat thread
 	}
-	//写线程
+	// 写线程
 	go func() {
 		for {
 			select {
@@ -74,11 +75,10 @@ func (s *TCPServer) Start() error {
 			case <-s.done:
 				return
 			}
-
 		}
 	}()
 
-	//读线程
+	// 读线程
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -116,7 +116,7 @@ func (s *TCPServer) Start() error {
 func (s *TCPServer) handlerSession(c *Connection) {
 	addrStr := c.Addr.String()
 
-	//recovery from panic
+	// recovery from panic
 	defer func() {
 		s.CloseOne(addrStr)
 		if err := recover(); err != nil {
@@ -158,12 +158,13 @@ func (s *TCPServer) CloseOne(addr string) {
 func (s *TCPServer) ReadPacketChan() <-chan *Packet {
 	return s.readChan
 }
+
 func (s *TCPServer) WritePacket(packet *Packet) {
 	s.writeChan <- packet
 }
 
 func (s *TCPServer) Close() error {
-	//TODO：TCP服务退出之前，需要先close掉所有客户端的连接
+	// TODO：TCP服务退出之前，需要先close掉所有客户端的连接
 	s.sessions.Range(func(key, value interface{}) bool {
 		c := value.(*Connection)
 		_ = c.Conn.Close()

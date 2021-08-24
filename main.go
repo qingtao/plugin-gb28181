@@ -3,26 +3,26 @@ package gb28181
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/Monibuca/engine/v3"
 	"github.com/Monibuca/plugin-gb28181/v3/sip"
 	"github.com/Monibuca/plugin-gb28181/v3/transaction"
-    "github.com/Monibuca/plugin-gb28181/v3/utils"
-    . "github.com/Monibuca/utils/v3"
+	"github.com/Monibuca/plugin-gb28181/v3/utils"
+	. "github.com/Monibuca/utils/v3"
 	. "github.com/logrusorgru/aurora"
 	"github.com/pion/rtp"
 	"golang.org/x/net/html/charset"
 )
 
 var (
-	Devices sync.Map
-	Ignores = make(map[string]struct{})
+	Devices    sync.Map
+	Ignores    = make(map[string]struct{})
 	publishers Publishers
 )
 
@@ -46,11 +46,13 @@ func (p *Publishers) Add(key uint32, pp *Publisher) {
 	p.data[key] = pp
 	p.Unlock()
 }
+
 func (p *Publishers) Remove(key uint32) {
 	p.Lock()
 	delete(p.data, key)
 	p.Unlock()
 }
+
 func (p *Publishers) Get(key uint32) *Publisher {
 	p.RLock()
 	defer p.RUnlock()
@@ -159,7 +161,7 @@ func run() {
 		endTime := query.Get("endTime")
 		if c := FindChannel(id, channel); c != nil {
 			if startTime == "" && c.LivePublisher != nil {
-				w.WriteHeader(304) //直播流已存在
+				w.WriteHeader(304) // 直播流已存在
 			} else {
 				w.WriteHeader(c.Invite(startTime, endTime))
 			}
@@ -219,10 +221,10 @@ func run() {
 			decoder := xml.NewDecoder(bytes.NewReader([]byte(msg.Body)))
 			decoder.CharsetReader = charset.NewReaderLabel
 			err := decoder.Decode(temp)
-            if err != nil {
-                err = utils.DecodeGbk(temp, []byte(msg.Body))
-                log.Printf("decode catelog err: %s", err)
-            }
+			if err != nil {
+				err = utils.DecodeGbk(temp, []byte(msg.Body))
+				log.Printf("decode catelog err: %s", err)
+			}
 			switch temp.XMLName.Local {
 			case "Notify":
 				if d.Channels == nil {
@@ -250,20 +252,22 @@ func run() {
 	//		}
 	//	})
 	//})
-	go listenMedia()
+	go listenMedia(config.MediaIP)
 	go queryCatalog(config)
 	s.Start()
 }
-func listenMedia() {
+
+func listenMedia(ip string) {
 	networkBuffer := 1048576
+	a := fmt.Sprintf("%s:%d", ip, config.MediaPort)
 	var rtpPacket rtp.Packet
-	addr, err := net.ResolveUDPAddr("udp", ":"+strconv.Itoa(int(config.MediaPort)))
+	addr, err := net.ResolveUDPAddr("udp", a)
 	if err != nil {
-		log.Fatalf("udp server ResolveUDPAddr MediaPort:%d error, %v", config.MediaPort, err)
+		log.Fatalf("udp server ResolveUDPAddr addr:MediaPort:%s error, %v", a, err)
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		log.Fatalf("udp server ListenUDP MediaPort:%d error, %v", config.MediaPort, err)
+		log.Fatalf("udp server ListenUDP addr:MediaPort:%s error, %v", addr, err)
 	}
 	if err = conn.SetReadBuffer(networkBuffer); err != nil {
 		Printf("udp server video conn set read buffer error, %v", err)
@@ -272,8 +276,8 @@ func listenMedia() {
 		Printf("udp server video conn set write buffer error, %v", err)
 	}
 	bufUDP := make([]byte, 1048576)
-	Printf("udp server start listen video port[%d]", config.MediaPort)
-	defer Printf("udp server stop listen video port[%d]", config.MediaPort)
+	Print(Green("udp server start listen video addr:port"), BrightBlue(addr.String()))
+	defer Printf("udp server stop listen video addr:port[%s]", addr.String())
 	for n, _, err := conn.ReadFromUDP(bufUDP); err == nil; n, _, err = conn.ReadFromUDP(bufUDP) {
 		ps := bufUDP[:n]
 		if err := rtpPacket.Unmarshal(ps); err != nil {
